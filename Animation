@@ -1,0 +1,99 @@
+%% Cardiac Pacemaking Model (Noble 1962) with 3D Visualization
+
+clear; clc; close all;
+
+% Define Constants
+Cm = 12; % Membrane capacitance (in µF/cm^2)
+t_max = 1600; % Total simulation time (in ms)
+tspan = 0:0.01:t_max; % Time vector
+
+% Initial conditions
+y0 = [-70;0.996;0.01;0.32];
+[t,y] = ode45(@noble, tspan, y0);
+
+% Create spatial dimension for visualization
+x_length = 50; % Length of spatial dimension
+x = linspace(0, x_length, 50); % Spatial coordinates
+y_coords = linspace(0, x_length, 50); % Second spatial dimension
+
+% Set up video writer
+videoObj = VideoWriter('Noble3DAnimation.mp4', 'MPEG-4');
+videoObj.FrameRate = 30;
+videoObj.Quality = 95;
+open(videoObj);
+
+% Create figure for 3D visualization
+figure('Position', [100, 100, 1000, 800]);
+
+% Create the 3D surface for visualization
+[X, Y] = meshgrid(x, y_coords);
+Z = zeros(size(X)); % Initialize surface values
+
+% Set up colormap and lighting
+colormap(jet);
+shading interp;
+lighting phong;
+camlight;
+
+% Animation parameters
+numFrames = 200; % Number of frames to capture
+frame_indices = round(linspace(1, length(t), numFrames));
+
+% Spatial propagation parameters
+velocity = 0.5; % Propagation velocity (space units per time unit)
+width = 10;     % Width of the propagating wave
+
+% Animation loop
+for i = 1:length(frame_indices)
+    idx = frame_indices(i);
+    current_time = t(idx);
+    
+    % Create spatial propagation effect
+    for j = 1:length(x)
+        for k = 1:length(y_coords)
+            % Calculate distance from center
+            dist = sqrt((x(j) - x_length/2)^2 + (y_coords(k) - x_length/2)^2);
+            
+            % Apply time delay based on distance (creates wave propagation effect)
+            time_delay = dist / velocity;
+            
+            % Find the corresponding time index
+            delayed_time_idx = find(t >= (current_time - time_delay), 1, 'first');
+            
+            if isempty(delayed_time_idx) || delayed_time_idx < 1
+                delayed_time_idx = 1;
+            end
+            
+            % Attenuate amplitude with distance
+            attenuation = exp(-dist/width);
+            
+            % Set the Z value based on membrane potential and distance
+            Z(k, j) = y(delayed_time_idx, 1) * attenuation;
+        end
+    end
+    
+    % Plot the surface
+    surf(X, Y, Z);
+    
+    % Set consistent view limits
+    axis([0 x_length 0 x_length -90 40]);
+    
+    % Add labels and title
+    xlabel('Distance (mm)', 'FontSize', 12);
+    ylabel('Distance (mm)', 'FontSize', 12);
+    zlabel('Membrane Potential (mV)', 'FontSize', 12);
+    title('Cardiac Action Potential Propagation (Noble 1962)', 'FontSize', 14);
+    
+    % Add colorbar
+    cb = colorbar;
+    title(cb, 'mV');
+    
+    % Capture the frame
+    drawnow;
+    frame = getframe(gcf);
+    writeVideo(videoObj, frame);
+end
+
+% Close the video
+close(videoObj);
+disp('3D Animation complete! Video saved as Noble3DAnimation.mp4');
